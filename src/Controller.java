@@ -1,33 +1,43 @@
-import service.message.MessageService;
-import service.work.EqService;
+import service.message.MessagePrinter;
+import service.equation.EquationService;
+import service.message.helper.MessageHolder;
+
+import java.util.InputMismatchException;
 import java.util.Scanner;
 
+import static service.message.helper.MessageHolder.*;
+
 public class Controller {
-    private String equationNumber;
-    private boolean dataStatus;
-    private MessageService messageService;
+    private int equationNumber;
+    private MessagePrinter printer;
 
     public Controller(){
-        this.messageService = new MessageService();
-        messageService.doing();
+        printer = new MessagePrinter();
+        printer.printInformation(WELCOME_MESSAGE);
     }
 
-    public void setEquationNumber(){
-        Scanner inp = new Scanner(System.in);
-        equationNumber = inp.nextLine().trim().toLowerCase();
+    public void enterEquationNumber(){
+        Scanner input = new Scanner(System.in);
+        equationNumber = input.nextInt();
     }
-
 
     public void start(){
-        messageService.showEquationsMessage();
+        printer.printInformation(CHOOSE_EQUATION_MESSAGE);
+        boolean correctDataStatus = false;
 
-        do{
-            setEquationNumber();
-            dataStatus = equationNumber.equals("1") || equationNumber.equals("2") || equationNumber.equals("3") || equationNumber.equals("4");
+        while (!correctDataStatus){
+            try {
+                enterEquationNumber();
+                correctDataStatus = equationNumber >= 1 && equationNumber <= 4 ? true : false;
 
-            if(!dataStatus) messageService.wrongEquationNumberMessage();
-        } while (!dataStatus);
+                if(!correctDataStatus)
+                    printer.printError(WRONG_EQUATION_NUMBER_MESSAGE);
 
-        new EqService(Integer.parseInt(equationNumber)).doing();
+            }catch (InputMismatchException e){
+                printer.printError(WRONG_EQUATION_NUMBER_MESSAGE);
+            }
+        }
+
+        new EquationService(equationNumber).doing();
     }
 }
