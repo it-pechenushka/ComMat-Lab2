@@ -2,170 +2,167 @@ package method;
 
 import exceptions.NotConvergeIntegralException;
 import exceptions.NullResultException;
-import javafx.scene.transform.Scale;
-import service.message.SolvingMessageService;
+import method.equation.*;
+import model.EquationEntity;
+import service.message.SolvingMessagePrinter;
 
 import java.util.Scanner;
 
-public class TrapezoidMethod {
-    private int eqNum;
-    private double high;
-    private double low;
-    private double accuracy;
-    private SolvingMessageService ms;
-    private int n = 2;
-    private int sign = 1;
-    private double step;
-    private double preRes;
-    private double postRes;
+import static service.message.helper.MessageHolder.*;
 
-    public TrapezoidMethod(int eqNum, double upperLim, double lowerLim, double accuracy){
-        this.eqNum = eqNum;
-        this.high = upperLim;
-        this.low = lowerLim;
-        this.accuracy = accuracy;
-        this.ms = new SolvingMessageService();
-        this.step = (high - low) / (double)n;
+public class TrapezoidMethod {
+    private EquationEntity equationEntity;
+    private SolvingMessagePrinter printer;
+    private double step;
+    private int n = 2;
+    private int numberSign = 1;
+
+    public TrapezoidMethod(EquationEntity equationEntity){
+        this.equationEntity = equationEntity;
+        printer = new SolvingMessagePrinter();
+        step = (equationEntity.getUpperLimit() - equationEntity.getLowerLimit()) / n;
     }
 
     public void solve(){
+        double previewResult;
+        double currentResult;
+        int equationNumber = equationEntity.equationNumber;
+        double lowerLimit = equationEntity.getLowerLimit();
+        double upperLimit = equationEntity.getUpperLimit();
+        Equation equation;
+
         try {
-            switch (eqNum){
-                case 1:
-                    if (low == high) throw new NullResultException();
-                    preRes = init1();
-                    break;
-                case 2:
+
+            if (equationNumber == 1 || equationNumber == 3) {
+                if (lowerLimit == upperLimit)
+                    throw new NullResultException();
+
+                equation = equationNumber == 1 ? new FirstEquation() : new ThirdEquation();
+
+            } else {
+                if (equationNumber == 2)
                     checkConditionsFor2();
-                    step = (high - low) / (double)n;
-                    preRes = init2();
-                    break;
-                case 3:
-                    if (low == high) throw new NullResultException();
-                    preRes = init3();
-                    break;
-                case 4:
+                else
                     checkConditionsFor4();
-                    step = (high - low) / (double)n;
-                    preRes = init4();
-                    break;
+
+                upperLimit = equationEntity.getUpperLimit();
+                lowerLimit = equationEntity.getLowerLimit();
+                step = (upperLimit - lowerLimit) / n;
+
+                equation = equationNumber == 2 ? new SecondEquation() : new FourthEquation();
             }
+
+            previewResult = calculateNormalizeResult(lowerLimit, upperLimit, equation, equationNumber);
 
             while (true) {
                 n *= 2;
                 step /= 2.0;
 
-                switch (eqNum) {
-                    case 1:
-                        postRes = init1();
-                        break;
-                    case 2:
-                        postRes = init2();
-                        break;
-                    case 3:
-                        postRes = init3();
-                        break;
-                    case 4:
-                        postRes = init4();
-                        break;
-                }
+                currentResult = calculateNormalizeResult(lowerLimit, upperLimit, equation, equationNumber);
 
-                if(Math.abs(postRes - preRes) / 3.0 <= accuracy) break;
-                else preRes = postRes;
+                if(Math.abs(currentResult - previewResult) / 3.0 <= equationEntity.accuracy) break;
+                else previewResult = currentResult;
             }
+
+            printer.printResult(currentResult);
+            printer.printNumberOfSplits(n);
+            printer.printNoise(Math.abs(Math.abs(currentResult - previewResult) / 3.0));
+
         } catch (NotConvergeIntegralException e){
-            ms.notConvergeIntegralMessage();
-            System.exit(0);
+            printer.printError(e.getMessage());
+            printer.printError(PROGRAM_EXIT_MESSAGE);
+
         } catch (NullResultException e) {
-            postRes = 0;
-            preRes = 0;
-            n = 0;
-        } catch (InterruptedException e) { }
+            printer.printResult(0);
+            printer.printNumberOfSplits(0);
+            printer.printNoise(0);
 
-
-        ms.showResult(postRes);
-        ms.showNumOfSplits(n);
-        ms.showFault(Math.abs(Math.abs(postRes - preRes) / 3.0));
-
+        } catch (InterruptedException ignore) { }
     }
 
-    private double init1(){
-        double res = 0;
+    private double calculateNormalizeResult(double lowerLimit, double upperLimit, Equation equation, int equationNumber){
+        double tmpResult = calculateEquation(lowerLimit, upperLimit, equation);
 
-        for(double x = low + step; x < high; x += step) res += x * x;
-
-        return (step * 0.5 * (low * low + high * high + 2 * res));
-    }
-
-    private double init2() {
-        double res = 0;
-
-        for(double x = low + step; x < high; x += step) res += 1.0 / x;
-
-        return (step * 0.5 * (1.0 / low + 1.0 / high + 2 * res)) * sign;
+        return equationNumber == 2 ? tmpResult * numberSign : tmpResult;
     }
 
     private void checkConditionsFor2() throws NotConvergeIntegralException, NullResultException, InterruptedException {
-        if(low == 0 && high == 0) throw new NotConvergeIntegralException();
-        if (low == high) throw new NullResultException();
-        if (high == 0){
-            high += 0.000001;
-            ms.funcGapMessage("верхнем", high, 2);
+        double lowerLimit = equationEntity.getLowerLimit();
+        double upperLimit = equationEntity.getUpperLimit();
+
+        if(lowerLimit == 0 && upperLimit == 0)
+            throw new NotConvergeIntegralException(ERROR_CONVERGE_INTEGRAL_MESSAGE);
+
+        if (lowerLimit == upperLimit)
+            throw new NullResultException();
+
+        if (upperLimit == 0){
+            upperLimit += 0.000001;
+            printer.printFunctionGapMessage(UPPER, upperLimit, 2);
         }
 
-        if (low == 0){
-            low -= 0.000001;
-            ms.funcGapMessage("нижнем", low, 2);
+        if (lowerLimit == 0){
+            lowerLimit -= 0.000001;
+            printer.printFunctionGapMessage(LOWER, lowerLimit, 2);
         }
 
-        if (Math.abs(low) == Math.abs(high)) throw new NullResultException();
-        if(low < 0  && high > 0) {
-            ms.notConvergeIntegralMessage();
-            ms.askAboutContinueMessage();
+        if (Math.abs(lowerLimit) == Math.abs(upperLimit))
+            throw new NullResultException();
+
+        if(lowerLimit < 0  && upperLimit > 0) {
+            printer.printError(ERROR_CONVERGE_INTEGRAL_MESSAGE);
+            printer.printInformation(CONFIRM_CONTINUE_MESSAGE);
+
+            Scanner scanner = new Scanner(System.in);
+
             while (true){
-                Scanner scanner = new Scanner(System.in);
-                String ans = scanner.nextLine().trim();
-                if(ans.equals("да")) break;
-                else if(ans.equals("нет")) System.exit(0);
-                else ms.inputCorrectMessage();
+                String input = scanner.nextLine().trim();
+
+                if(input.equals(YES))
+                    break;
+                else
+                    if(input.equals(NO))
+                        throw new NotConvergeIntegralException(ERROR_CONVERGE_INTEGRAL_MESSAGE);
+                else
+                    printer.printInformation(ENTER_CORRECT_INPUT_MESSAGE);
             }
 
-            low = Math.abs(low);
-            if (high < low){
-                sign = -1;
-                double tmp = low;
-                low = high;
-                high = tmp;
+            lowerLimit = Math.abs(lowerLimit);
+
+            if (upperLimit < lowerLimit){
+                numberSign = -1;
+                equationEntity.setLowerLimit(upperLimit);
+                equationEntity.setUpperLimit(lowerLimit);
             }
         }
-
-    }
-
-    private double init3(){
-        double res = 0;
-
-        for(double x = low + step; x < high; x += step) res +=  Math.sin(x);
-
-        return (step * 0.5 * (Math.sin(low) + Math.sin(high) + 2 * res));
-    }
-
-    private double init4(){
-        double res = 0;
-
-        for(double x = low + step; x < high; x += step) res +=  Math.log(x);
-
-        return (step * 0.5 * (Math.log(low) + Math.log(high) + 2 * res));
     }
 
     private void checkConditionsFor4() throws NotConvergeIntegralException, NullResultException, InterruptedException {
-        if(low == 0 && high == 0) throw new NotConvergeIntegralException();
-        if (low == high) throw new NullResultException();
-        
-        if (low == 0){
-            low += 0.0000001;
-            ms.funcGapMessage("нижнем", low, 2);
+        double lowerLimit = equationEntity.getLowerLimit();
+        double upperLimit = equationEntity.getUpperLimit();
+
+        if(lowerLimit == 0 && upperLimit == 0)
+            throw new NotConvergeIntegralException(ERROR_CONVERGE_INTEGRAL_MESSAGE);
+
+        if (lowerLimit == upperLimit)
+            throw new NullResultException();
+
+        if (lowerLimit == 0){
+            lowerLimit += 0.0000001;
+            printer.printFunctionGapMessage(LOWER, lowerLimit, 2);
         }
 
-        if (Math.abs(low) == Math.abs(high)) throw new NullResultException();
+        if (Math.abs(lowerLimit) == Math.abs(upperLimit))
+            throw new NullResultException();
+
+        equationEntity.setLowerLimit(lowerLimit);
+    }
+
+    private double calculateEquation(double lowerLimit, double upperLimit, Equation equation){
+        double tmpResult = 0.0;
+
+        for(double x = lowerLimit + step; x < upperLimit; x += step) tmpResult +=  equation.getEquationResult(x);
+
+        return (step * 0.5 * (equation.getEquationResult(lowerLimit) + equation.getEquationResult(upperLimit) + 2 * tmpResult));
     }
 }
